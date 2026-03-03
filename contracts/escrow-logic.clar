@@ -219,3 +219,50 @@
     (contract-call? .escrow-storage update-escrow-status escrow-id "disputed")
   )
 )
+
+;; Resolve dispute (treasury/arbitrator only)
+(define-public (resolve-dispute
+    (escrow-id uint)
+    (release-to-freelancer bool))
+  (let
+    ((escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND)))
+    
+    (asserts! (is-eq contract-caller (var-get treasury)) ERR_UNAUTHORIZED)
+    (asserts! (is-eq (get status escrow) "disputed") ERR_INVALID_STATUS)
+    
+    ;; Transfer based on resolution
+    (try! (as-contract (stx-transfer?
+      (get amount escrow)
+      tx-sender
+      (if release-to-freelancer
+        (get freelancer escrow)
+        (get client escrow)
+      )
+    )))
+    
+    (contract-call? .escrow-storage set-escrow-completed escrow-id stacks-block-height)
+  )
+)
+
+;; ============================================
+;; READ-ONLY FUNCTIONS
+;; ============================================
+
+(define-read-only (get-escrow (escrow-id uint))
+  (get-escrow-data escrow-id)
+)
+
+(define-read-only (get-escrow-count)
+  (contract-call? .escrow-storage get-escrow-count)
+)
+
+(define-read-only (is-review-period-expired (escrow-id uint))
+  (match (get-escrow-data escrow-id)
+    escrow
+      (match (get review-deadline escrow)
+        deadline (> stacks-block-height deadline)
+        false
+      )
+    false
+  )
+)
