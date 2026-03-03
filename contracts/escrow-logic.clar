@@ -54,3 +54,42 @@
     (ok (var-set treasury new-treasury))
   )
 )
+
+;; ============================================
+;; HELPER FUNCTIONS
+;; ============================================
+
+(define-private (get-escrow-data (escrow-id uint))
+  (contract-call? .escrow-storage get-escrow escrow-id)
+)
+
+(define-private (is-status (escrow-id uint) (expected-status (string-ascii 20)))
+  (match (contract-call? .escrow-storage get-escrow-status escrow-id)
+    status (is-eq status expected-status)
+    false
+  )
+)
+
+;; ============================================
+;; PUBLIC FUNCTIONS: ESCROW LIFECYCLE
+;; ============================================
+
+;; Create a new escrow (called by client)
+(define-public (create-escrow
+    (freelancer principal)
+    (amount uint)
+    (invoice-hash (optional (buff 32))))
+  (begin
+    ;; Validations using contract-caller for security
+    (asserts! (> amount u0) ERR_INVALID_AMOUNT)
+    (asserts! (not (is-eq contract-caller freelancer)) ERR_SELF_ESCROW)
+    
+    ;; Create escrow in storage
+    (contract-call? .escrow-storage insert-escrow
+      contract-caller
+      freelancer
+      amount
+      invoice-hash
+    )
+  )
+)
