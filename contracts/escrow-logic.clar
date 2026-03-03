@@ -170,3 +170,52 @@
     (contract-call? .escrow-storage set-escrow-completed escrow-id stacks-block-height)
   )
 )
+
+;; Request revision (client during review period)
+(define-public (request-revision (escrow-id uint))
+  (let
+    ((escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND)))
+    
+    (asserts! (is-eq contract-caller (get client escrow)) ERR_UNAUTHORIZED)
+    (asserts! (is-eq (get status escrow) "delivered") ERR_INVALID_STATUS)
+    (asserts!
+      (<= stacks-block-height (unwrap! (get review-deadline escrow) ERR_NOT_DELIVERED))
+      ERR_REVIEW_PERIOD_EXPIRED
+    )
+    
+    (contract-call? .escrow-storage reset-escrow-to-funded escrow-id)
+  )
+)
+
+;; ============================================
+;; PUBLIC FUNCTIONS: DISPUTES
+;; ============================================
+
+;; Initiate dispute (either party, freezes funds)
+(define-public (initiate-dispute (escrow-id uint))
+  (let
+    ((escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND)))
+    
+    ;; Only client or freelancer can dispute
+    (asserts!
+      (or
+        (is-eq contract-caller (get client escrow))
+        (is-eq contract-caller (get freelancer escrow))
+      )
+      ERR_UNAUTHORIZED
+    )
+    
+    ;; Check valid dispute states
+    (asserts! (not (is-eq (get status escrow) "completed")) ERR_ALREADY_COMPLETED)
+    (asserts! (not (is-eq (get status escrow) "disputed")) ERR_ALREADY_DISPUTED)
+    (asserts!
+      (or
+        (is-eq (get status escrow) "funded")
+        (is-eq (get status escrow) "delivered")
+      )
+      ERR_NOT_FUNDED
+    )
+    
+    (contract-call? .escrow-storage update-escrow-status escrow-id "disputed")
+  )
+)
