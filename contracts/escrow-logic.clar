@@ -143,3 +143,30 @@
     (ok deadline)
   )
 )
+
+;; Release payment (client approves OR auto-release after deadline)
+(define-public (release-payment (escrow-id uint))
+  (let
+    ((escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND)))
+    
+    (asserts! (is-eq (get status escrow) "delivered") ERR_INVALID_STATUS)
+    
+    ;; Client can release anytime; anyone can trigger after deadline
+    (asserts!
+      (or
+        (is-eq contract-caller (get client escrow))
+        (> stacks-block-height (unwrap! (get review-deadline escrow) ERR_NOT_DELIVERED))
+      )
+      ERR_UNAUTHORIZED
+    )
+    
+    ;; Transfer funds to freelancer
+    (try! (as-contract (stx-transfer?
+      (get amount escrow)
+      tx-sender
+      (get freelancer escrow)
+    )))
+    
+    (contract-call? .escrow-storage set-escrow-completed escrow-id stacks-block-height)
+  )
+)
