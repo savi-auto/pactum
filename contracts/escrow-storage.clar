@@ -104,3 +104,74 @@
     (ok escrow-id)
   )
 )
+
+(define-public (update-escrow-status
+    (escrow-id uint)
+    (new-status (string-ascii 20)))
+  (let
+    ((escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND)))
+    (try! (is-contract-owner))
+    (ok (map-set escrows escrow-id (merge escrow { status: new-status })))
+  )
+)
+
+(define-public (set-escrow-funded
+    (escrow-id uint)
+    (funded-at uint))
+  (let
+    ((escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND)))
+    (try! (is-contract-owner))
+    (ok (map-set escrows escrow-id
+      (merge escrow {
+        status: "funded",
+        funded-at: (some funded-at)
+      })
+    ))
+  )
+)
+
+(define-public (set-escrow-delivered
+    (escrow-id uint)
+    (delivered-at uint)
+    (review-deadline uint))
+  (let
+    ((escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND)))
+    (try! (is-contract-owner))
+    (ok (map-set escrows escrow-id
+      (merge escrow {
+        status: "delivered",
+        delivered-at: (some delivered-at),
+        review-deadline: (some review-deadline)
+      })
+    ))
+  )
+)
+
+(define-public (set-escrow-completed
+    (escrow-id uint)
+    (completed-at uint))
+  (let
+    ((escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND)))
+    (try! (is-contract-owner))
+    (ok (map-set escrows escrow-id
+      (merge escrow {
+        status: "completed",
+        completed-at: (some completed-at)
+      })
+    ))
+  )
+)
+
+(define-public (reset-escrow-to-funded (escrow-id uint))
+  (let
+    ((escrow (unwrap! (map-get? escrows escrow-id) ERR_ESCROW_NOT_FOUND)))
+    (try! (is-contract-owner))
+    (ok (map-set escrows escrow-id
+      (merge escrow {
+        status: "funded",
+        delivered-at: none,
+        review-deadline: none
+      })
+    ))
+  )
+)
