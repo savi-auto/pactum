@@ -93,3 +93,53 @@
     )
   )
 )
+
+;; Fund escrow (client sends STX to this contract)
+(define-public (fund-escrow (escrow-id uint))
+  (let
+    ((escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND)))
+    
+    ;; Only client can fund
+    (asserts! (is-eq contract-caller (get client escrow)) ERR_UNAUTHORIZED)
+    ;; Must be in "created" status
+    (asserts! (is-eq (get status escrow) "created") ERR_ALREADY_FUNDED)
+    
+    ;; Transfer STX from client to this contract
+    (try! (stx-transfer? (get amount escrow) contract-caller (as-contract tx-sender)))
+    
+    ;; Update storage
+    (contract-call? .escrow-storage set-escrow-funded escrow-id stacks-block-height)
+  )
+)
+
+;; Cancel escrow (only if not funded)
+(define-public (cancel-escrow (escrow-id uint))
+  (let
+    ((escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND)))
+    
+    (asserts! (is-eq contract-caller (get client escrow)) ERR_UNAUTHORIZED)
+    (asserts! (is-eq (get status escrow) "created") ERR_ALREADY_FUNDED)
+    
+    (contract-call? .escrow-storage update-escrow-status escrow-id "cancelled")
+  )
+)
+
+;; Mark work as delivered (called by freelancer)
+(define-public (mark-delivered (escrow-id uint))
+  (let
+    (
+      (escrow (unwrap! (get-escrow-data escrow-id) ERR_ESCROW_NOT_FOUND))
+      (deadline (+ stacks-block-height REVIEW_PERIOD_BLOCKS))
+    )
+    
+    (asserts! (is-eq contract-caller (get freelancer escrow)) ERR_UNAUTHORIZED)
+    (asserts! (is-eq (get status escrow) "funded") ERR_NOT_FUNDED)
+    
+    (try! (contract-call? .escrow-storage set-escrow-delivered
+      escrow-id
+      stacks-block-height
+      deadline
+    ))
+    (ok deadline)
+  )
+)
