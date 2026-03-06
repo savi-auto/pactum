@@ -1,25 +1,17 @@
-import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useWallet } from "@/contexts/WalletContext";
-import { ExternalLink } from "lucide-react";
-
-const wallets = [
-  { name: "Leather", description: "Most popular Stacks wallet", icon: "🟤" },
-  { name: "Xverse", description: "Bitcoin & Stacks wallet", icon: "🟣" },
-  { name: "OKX", description: "OKX Web3 wallet", icon: "⚫" },
-  { name: "Asigna", description: "Multi-sig wallet for teams", icon: "🔵" },
-];
+import { ExternalLink, Loader2 } from "lucide-react";
 
 export function WalletModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { connect } = useWallet();
-  const [connecting, setConnecting] = useState<string | null>(null);
+  const { connect, isLoading } = useWallet();
 
-  const handleConnect = async (walletName: string) => {
-    setConnecting(walletName);
-    await new Promise(r => setTimeout(r, 1200));
-    connect(walletName);
-    setConnecting(null);
-    onOpenChange(false);
+  const handleConnect = async () => {
+    try {
+      await connect();
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Failed to connect:", error);
+    }
   };
 
   return (
@@ -27,29 +19,44 @@ export function WalletModal({ open, onOpenChange }: { open: boolean; onOpenChang
       <DialogContent className="sm:max-w-md border-border bg-card">
         <DialogHeader>
           <DialogTitle className="text-xl">Connect Wallet</DialogTitle>
-          <DialogDescription>Choose a wallet to connect to Pactum</DialogDescription>
+          <DialogDescription>Connect your Stacks wallet to use Pactum</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2 py-4">
-          {wallets.map((w) => (
-            <button
-              key={w.name}
-              onClick={() => handleConnect(w.name)}
-              disabled={connecting !== null}
-              className="flex w-full items-center gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:bg-accent disabled:opacity-50"
-            >
-              <span className="text-2xl">{w.icon}</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">{w.name}</p>
-                <p className="text-xs text-muted-foreground">{w.description}</p>
-              </div>
-              {connecting === w.name && (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              )}
-            </button>
-          ))}
+        <div className="space-y-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            Click the button below to connect your wallet. Pactum supports Leather, Xverse, OKX, and other SIP-030 compatible wallets.
+          </p>
+          <button
+            onClick={handleConnect}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary p-3 text-primary-foreground font-medium transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              "Connect Stacks Wallet"
+            )}
+          </button>
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <p className="text-xs font-medium text-foreground">Supported Wallets</p>
+            <div className="flex flex-wrap gap-2">
+              {["Leather", "Xverse", "OKX", "Asigna"].map(name => (
+                <span key={name} className="rounded bg-accent px-2 py-0.5 text-xs text-muted-foreground">
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
-        <a href="#" className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          What's a wallet? <ExternalLink className="h-3 w-3" />
+        <a 
+          href="https://leather.io" 
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Need a wallet? Get Leather <ExternalLink className="h-3 w-3" />
         </a>
       </DialogContent>
     </Dialog>
