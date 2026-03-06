@@ -1,0 +1,13 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pactumGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="32" height="32" rx="6" fill="url(#pactumGradient)" />
+  <!-- Chain link icon - two interlocking pills -->
+  <rect x="4" y="10" width="14" height="12" rx="6" stroke="white" stroke-width="2.5" fill="none" />
+  <rect x="14" y="10" width="14" height="12" rx="6" stroke="white" stroke-width="2.5" fill="none" />
+</svg>

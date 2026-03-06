@@ -1,0 +1,11 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pactumGradient16" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+  </defs>
+  <rect width="16" height="16" rx="3" fill="url(#pactumGradient16)" />
+  <rect x="2" y="5" width="7" height="6" rx="3" stroke="white" stroke-width="1.5" fill="none" />
+  <rect x="7" y="5" width="7" height="6" rx="3" stroke="white" stroke-width="1.5" fill="none" />
+</svg>
