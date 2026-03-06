@@ -4,13 +4,12 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { STXAmount } from "@/components/shared/STXAmount";
 import { WalletAddress } from "@/components/shared/WalletAddress";
 import { ListPageSkeleton } from "@/components/shared/PageSkeletons";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { useSimulatedLoading } from "@/hooks/useSimulatedLoading";
-import { mockWalletTransactions } from "@/lib/mock-data";
-import { Search, Filter, ArrowUpRight, ArrowDownLeft, ArrowLeftRight, CalendarIcon, X } from "lucide-react";
+import { useWallet } from "@/contexts/WalletContext";
+import { useTransactions, type Transaction } from "@/hooks/useTransactions";
+import { Search, Filter, ArrowUpRight, ArrowDownLeft, ArrowLeftRight, CalendarIcon, X, Code2, Wallet } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow, format, endOfDay } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -30,7 +29,10 @@ import {
 const ITEMS_PER_PAGE = 10;
 
 export default function Transactions() {
-  const isLoading = useSimulatedLoading();
+  const { isConnected } = useWallet();
+  const { data, isLoading } = useTransactions(100);
+  const transactions = data?.transactions ?? [];
+  
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -43,17 +45,18 @@ export default function Transactions() {
   // Reset page when filters change
   useEffect(() => setCurrentPage(1), [search, typeFilter, statusFilter, dateFrom, dateTo]);
 
-  const filtered = useMemo(() => mockWalletTransactions.filter(tx => {
+  const filtered = useMemo(() => transactions.filter(tx => {
     const matchSearch =
       tx.counterparty.toLowerCase().includes(search.toLowerCase()) ||
-      (tx.memo?.toLowerCase().includes(search.toLowerCase()) ?? false);
+      (tx.memo?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (tx.contractName?.toLowerCase().includes(search.toLowerCase()) ?? false);
     const matchType = typeFilter === "all" || tx.type === typeFilter;
     const matchStatus = statusFilter === "all" || tx.status === statusFilter;
     const txDate = new Date(tx.timestamp);
     const matchDateFrom = !dateFrom || txDate >= dateFrom;
     const matchDateTo = !dateTo || txDate <= endOfDay(dateTo);
     return matchSearch && matchType && matchStatus && matchDateFrom && matchDateTo;
-  }), [search, typeFilter, statusFilter, dateFrom, dateTo]);
+  }), [transactions, search, typeFilter, statusFilter, dateFrom, dateTo]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -72,6 +75,16 @@ export default function Transactions() {
     return pages;
   };
 
+  if (!isConnected) {
+    return (
+      <EmptyState
+        icon={Wallet}
+        title="Connect your wallet"
+        description="Connect your Stacks wallet to view your transaction history."
+      />
+    );
+  }
+
   if (isLoading) return <ListPageSkeleton />;
 
   const clearFilters = () => {
@@ -80,6 +93,19 @@ export default function Transactions() {
     setStatusFilter("all");
     setDateFrom(undefined);
     setDateTo(undefined);
+  };
+
+  const getTransactionIcon = (tx: Transaction) => {
+    if (tx.type === "contract_call") return <Code2 className="h-4 w-4" />;
+    if (tx.type === "sent") return <ArrowUpRight className="h-4 w-4" />;
+    return <ArrowDownLeft className="h-4 w-4" />;
+  };
+
+  const getTransactionLabel = (tx: Transaction) => {
+    if (tx.type === "contract_call") {
+      return tx.functionName ? `${tx.contractName}.${tx.functionName}` : tx.contractName || "Contract Call";
+    }
+    return tx.type === "sent" ? "Sent" : "Received";
   };
 
   return (
@@ -95,108 +121,134 @@ export default function Transactions() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by address or memo..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      {transactions.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by address or memo..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-36">
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="sent">Sent</SelectItem>
+              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="contract_call">Contracts</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36">
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Date From */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-36 justify-start text-left font-normal gap-1.5", !dateFrom && "text-muted-foreground")}>
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{dateFrom ? format(dateFrom, "MMM d, yyyy") : "From date"}</span>
+                {dateFrom && (
+                  <X className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDateFrom(undefined); }} />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+
+          {/* Date To */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-36 justify-start text-left font-normal gap-1.5", !dateTo && "text-muted-foreground")}>
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{dateTo ? format(dateTo, "MMM d, yyyy") : "To date"}</span>
+                {dateTo && (
+                  <X className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDateTo(undefined); }} />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
         </div>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-36">
-            <Filter className="mr-1.5 h-3.5 w-3.5" />
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="sent">Sent</SelectItem>
-            <SelectItem value="received">Received</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36">
-            <Filter className="mr-1.5 h-3.5 w-3.5" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Date From */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className={cn("w-36 justify-start text-left font-normal gap-1.5", !dateFrom && "text-muted-foreground")}>
-              <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{dateFrom ? format(dateFrom, "MMM d, yyyy") : "From date"}</span>
-              {dateFrom && (
-                <X className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDateFrom(undefined); }} />
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" />
-          </PopoverContent>
-        </Popover>
-
-        {/* Date To */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className={cn("w-36 justify-start text-left font-normal gap-1.5", !dateTo && "text-muted-foreground")}>
-              <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{dateTo ? format(dateTo, "MMM d, yyyy") : "To date"}</span>
-              {dateTo && (
-                <X className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDateTo(undefined); }} />
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" />
-          </PopoverContent>
-        </Popover>
-      </div>
+      )}
 
       {/* List */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
         {paginated.map(tx => {
           const isSent = tx.type === "sent";
+          const isContractCall = tx.type === "contract_call";
+          const colorClass = isContractCall 
+            ? "bg-blue-500/10 text-blue-500"
+            : isSent 
+              ? "bg-destructive/10 text-destructive" 
+              : "bg-emerald-500/10 text-emerald-500";
+          const amountColorClass = isContractCall
+            ? "text-muted-foreground"
+            : isSent 
+              ? "text-destructive" 
+              : "text-emerald-500";
+
           return (
-            <Link key={tx.id} to={`/transactions/${tx.id}`}>
-            <Card className="cursor-pointer transition-colors hover:bg-accent">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isSent ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-500"}`}>
-                  {isSent ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownLeft className="h-4 w-4" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">
-                      {isSent ? "Sent" : "Received"}
-                    </span>
-                    <Badge variant={tx.status === "confirmed" ? "secondary" : "outline"} className="text-[10px]">
-                      {tx.status}
-                    </Badge>
+            <a 
+              key={tx.id} 
+              href={`https://explorer.stacks.co/txid/${tx.txId}?chain=testnet`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Card className="cursor-pointer transition-colors hover:bg-accent">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${colorClass}`}>
+                    {getTransactionIcon(tx)}
                   </div>
-                  <WalletAddress address={tx.counterparty} />
-                  {tx.memo && (
-                    <p className="truncate text-xs text-muted-foreground mt-0.5">{tx.memo}</p>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`font-mono text-sm font-semibold ${isSent ? "text-destructive" : "text-emerald-500"}`}>
-                    {isSent ? "-" : "+"}{tx.amount.toLocaleString()} STX
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatDistanceToNow(new Date(tx.timestamp), { addSuffix: true })}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-            </Link>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {getTransactionLabel(tx)}
+                      </span>
+                      <Badge 
+                        variant={tx.status === "success" ? "secondary" : tx.status === "pending" ? "outline" : "destructive"} 
+                        className="text-[10px]"
+                      >
+                        {tx.status}
+                      </Badge>
+                    </div>
+                    <WalletAddress address={tx.counterparty} />
+                    {tx.memo && (
+                      <p className="truncate text-xs text-muted-foreground mt-0.5">{tx.memo}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {tx.amount > 0 && (
+                      <span className={`font-mono text-sm font-semibold ${amountColorClass}`}>
+                        {isSent ? "-" : isContractCall ? "" : "+"}{tx.amount.toLocaleString()} STX
+                      </span>
+                    )}
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(tx.timestamp), { addSuffix: true })}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </a>
           );
         })}
         {filtered.length === 0 && (
@@ -212,7 +264,7 @@ export default function Transactions() {
             <EmptyState
               icon={ArrowLeftRight}
               title="No transactions yet"
-              description="Your wallet transaction history will appear here."
+              description="Your wallet transaction history will appear here once you make or receive transfers."
             />
           )
         )}

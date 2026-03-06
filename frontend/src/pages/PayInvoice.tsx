@@ -1,20 +1,20 @@
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { mockInvoices, STX_PRICE_USD } from "@/lib/mock-data";
+import { useInvoicesStore } from "@/stores/useInvoicesStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { PactumLogo } from "@/components/shared/PactumLogo";
 import { STXAmount } from "@/components/shared/STXAmount";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { Shield, ExternalLink } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Shield } from "lucide-react";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 export default function PayInvoice() {
   const { id } = useParams();
-  const invoice = mockInvoices.find(inv => inv.id === id);
+  const { getInvoice } = useInvoicesStore();
+  const invoice = id ? getInvoice(id) : undefined;
 
   if (!invoice) {
     return (
@@ -30,7 +30,9 @@ export default function PayInvoice() {
   }
 
   const handlePay = () => {
-    toast({ title: "Wallet Connection Required", description: "Connect a Stacks wallet to pay this invoice via escrow." });
+    toast.info("Wallet Connection Required", {
+      description: "Connect a Stacks wallet to pay this invoice via escrow.",
+    });
   };
 
   return (
