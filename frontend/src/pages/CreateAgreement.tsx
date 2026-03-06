@@ -11,16 +11,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ContactAvatar } from "@/components/shared/ContactAvatar";
 import { STXAmount } from "@/components/shared/STXAmount";
 import { mockContacts, STX_PRICE_USD } from "@/lib/mock-data";
-import { ArrowLeft, ArrowRight, Check, UserPlus, FileText, SkipForward } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, UserPlus, FileText, SkipForward, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useWallet } from "@/contexts/WalletContext";
+import { useCreateEscrow } from "@/hooks/useEscrow";
 
 const steps = ["Counterparty", "Terms", "Invoice", "Review"];
 
 export default function CreateAgreement() {
   const navigate = useNavigate();
+  const { isConnected, address: walletAddress } = useWallet();
+  const createEscrow = useCreateEscrow();
+  
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     counterpartyId: "",
+    counterpartyAddress: "", // Direct address input
     role: "client" as "client" | "freelancer",
     title: "",
     amount: "",
@@ -30,19 +36,54 @@ export default function CreateAgreement() {
   });
 
   const counterparty = mockContacts.find(c => c.id === form.counterpartyId);
+  const freelancerAddress = form.role === "client" 
+    ? (counterparty?.address || form.counterpartyAddress)
+    : walletAddress;
   const amountNum = parseFloat(form.amount) || 0;
 
+  // Validate Stacks address format
+  const isValidStxAddress = (addr: string) => {
+    return /^(SP|ST)[A-Z0-9]{38,}$/i.test(addr);
+  };
+
   const canNext = (() => {
-    if (step === 0) return !!form.counterpartyId;
+    if (step === 0) return !!(form.counterpartyId || (form.counterpartyAddress && isValidStxAddress(form.counterpartyAddress)));
     if (step === 1) return form.title && amountNum > 0;
     if (step === 2) return true;
-    if (step === 3) return form.consent;
+    if (step === 3) return form.consent && isConnected;
     return false;
   })();
 
-  const handleSubmit = () => {
-    toast({ title: "Agreement Created", description: `${form.title} has been created successfully.` });
-    navigate("/agreements");
+  const handleSubmit = async () => {
+    if (!isConnected) {
+      toast({ 
+        title: "Wallet Not Connected", 
+        description: "Please connect your wallet to create an agreement.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!freelancerAddress) {
+      toast({ 
+        title: "Invalid Address", 
+        description: "Please provide a valid freelancer address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await createEscrow.mutateAsync({
+        freelancerAddress,
+        amountStx: amountNum,
+        invoiceHash: null, // TODO: Add invoice hash support
+      });
+      navigate("/agreements");
+    } catch (error) {
+      // Error toast is handled in the hook
+      console.error("Failed to create escrow:", error);
+    }
   };
 
   return (
@@ -73,11 +114,34 @@ export default function CreateAgreement() {
               <CardHeader>
                 <CardTitle className="text-lg">Select Counterparty</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-4">
+                {/* Direct address input */}
+                <div>
+                  <Label>Enter Stacks Address</Label>
+                  <Input 
+                    className="mt-1.5 font-mono" 
+                    placeholder="SP... or ST..." 
+                    value={form.counterpartyAddress}
+                    onChange={e => setForm(f => ({ ...f, counterpartyAddress: e.target.value, counterpartyId: "" }))}
+                  />
+                  {form.counterpartyAddress && !isValidStxAddress(form.counterpartyAddress) && (
+                    <p className="mt-1 text-xs text-destructive">Invalid Stacks address format</p>
+                  )}
+                </div>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or select from contacts</span>
+                  </div>
+                </div>
+
                 {mockContacts.map(c => (
                   <button
                     key={c.id}
-                    onClick={() => setForm(f => ({ ...f, counterpartyId: c.id }))}
+                    onClick={() => setForm(f => ({ ...f, counterpartyId: c.id, counterpartyAddress: "" }))}
                     className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
                       form.counterpartyId === c.id ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
                     }`}
@@ -172,10 +236,19 @@ export default function CreateAgreement() {
                 <CardTitle className="text-lg">Review & Confirm</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!isConnected && (
+                  <div className="rounded-lg border border-destructive bg-destructive/10 p-3">
+                    <p className="text-sm text-destructive font-medium">
+                      Please connect your wallet to create an agreement
+                    </p>
+                  </div>
+                )}
                 <div className="rounded-lg border border-border p-4 space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Counterparty</span>
-                    <span className="text-sm font-medium text-foreground">{counterparty?.name}</span>
+                    <span className="text-sm text-muted-foreground">Freelancer</span>
+                    <span className="text-sm font-medium text-foreground font-mono">
+                      {freelancerAddress ? `${freelancerAddress.slice(0, 8)}...${freelancerAddress.slice(-6)}` : "-"}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Role</span>
@@ -220,8 +293,21 @@ export default function CreateAgreement() {
             Next <ArrowRight className="ml-1.5 h-4 w-4" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={!canNext} className="gradient-orange border-0 text-white">
-            Create Agreement <Check className="ml-1.5 h-4 w-4" />
+          <Button 
+            onClick={handleSubmit} 
+            disabled={!canNext || createEscrow.isPending} 
+            className="gradient-orange border-0 text-white"
+          >
+            {createEscrow.isPending ? (
+              <>
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                Create Agreement <Check className="ml-1.5 h-4 w-4" />
+              </>
+            )}
           </Button>
         )}
       </div>

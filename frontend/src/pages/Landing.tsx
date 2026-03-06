@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, useInView, useScroll, useTransform, useMotionValue, useSpring, useMotionTemplate } from "framer-motion";
-import { WalletModal } from "@/components/wallet/WalletModal";
 import { useWallet } from "@/contexts/WalletContext";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Shield, Zap, Globe, Wallet, FileText, CheckCircle, ExternalLink, Menu, X, BookOpen, Github, Twitter, ChevronUp, Quote } from "lucide-react";
@@ -537,9 +536,8 @@ function HeroSection({ onConnect, isConnected }: { onConnect: () => void; isConn
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 export default function Landing() {
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, connect } = useWallet();
   const navigate = useNavigate();
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -596,7 +594,7 @@ export default function Landing() {
             </Button>
           ) : (
             <Button
-              onClick={() => setWalletModalOpen(true)}
+              onClick={() => connect()}
               size="sm"
               className="gradient-orange border-0 text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-shadow duration-300"
             >
@@ -662,7 +660,7 @@ export default function Landing() {
                 <Button
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    setWalletModalOpen(true);
+                    connect();
                   }}
                   className="gradient-orange border-0 text-white shadow-lg shadow-primary/25"
                 >
@@ -676,7 +674,7 @@ export default function Landing() {
       </AnimatePresence>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <HeroSection onConnect={() => setWalletModalOpen(true)} isConnected={isConnected} />
+      <HeroSection onConnect={() => connect()} isConnected={isConnected} />
 
       {/* ── Stats Bar ──────────────────────────────────────────── */}
       <motion.section className="border-y border-border bg-muted/30" variants={sectionFadeUp} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}>
@@ -909,7 +907,7 @@ export default function Landing() {
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <Button
-                  onClick={() => setWalletModalOpen(true)}
+                  onClick={() => connect()}
                   size="lg"
                   className="gradient-orange border-0 px-10 text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-shadow duration-300"
                 >
@@ -939,8 +937,6 @@ export default function Landing() {
           </div>
         </div>
       </motion.footer>
-
-      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
 
       {/* Scroll to top button */}
       <AnimatePresence>

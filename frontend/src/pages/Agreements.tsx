@@ -10,34 +10,74 @@ import { ContactAvatar } from "@/components/shared/ContactAvatar";
 import { CountdownTimer } from "@/components/shared/CountdownTimer";
 import { ListPageSkeleton } from "@/components/shared/PageSkeletons";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { useSimulatedLoading } from "@/hooks/useSimulatedLoading";
-import { mockAgreements, type AgreementStatus } from "@/lib/mock-data";
-import { Search, Plus, LayoutList, Columns3, Filter, FileText } from "lucide-react";
+import { useUserEscrows } from "@/hooks/useEscrow";
+import { useWallet } from "@/contexts/WalletContext";
+import { microToStx, type EscrowStatus } from "@/lib/contracts";
+import { Search, Plus, LayoutList, Columns3, Filter, FileText, Wallet } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const kanbanColumns: { status: AgreementStatus; label: string }[] = [
+const kanbanColumns: { status: EscrowStatus; label: string }[] = [
   { status: "created", label: "Created" },
   { status: "funded", label: "Funded" },
   { status: "delivered", label: "Delivered" },
   { status: "completed", label: "Completed" },
 ];
 
+// Helper to truncate addresses
+function truncateAddress(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 export default function Agreements() {
   const navigate = useNavigate();
-  const isLoading = useSimulatedLoading();
+  const { isConnected, address } = useWallet();
+  const { data: escrows, isLoading, error } = useUserEscrows();
+  
   const [view, setView] = useState<"list" | "kanban">("list");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const hasFilters = search !== "" || statusFilter !== "all";
 
-  const filtered = mockAgreements.filter(a => {
-    const matchSearch = a.title.toLowerCase().includes(search.toLowerCase()) ||
-      a.counterparty.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.id.toLowerCase().includes(search.toLowerCase());
+  // Transform escrows for display
+  const agreements = (escrows || []).map(escrow => ({
+    id: `#${escrow.id.toString().padStart(4, '0')}`,
+    escrowId: escrow.id,
+    title: `Escrow #${escrow.id}`, // No title in contract, using ID
+    amount: microToStx(escrow.amount),
+    status: escrow.status,
+    counterparty: {
+      name: truncateAddress(escrow.client === address ? escrow.freelancer : escrow.client),
+      address: escrow.client === address ? escrow.freelancer : escrow.client,
+    },
+    isClient: escrow.client === address,
+    deadline: escrow.reviewDeadline ? new Date(Date.now() + (escrow.reviewDeadline - Date.now()) * 1000) : null,
+    createdAt: escrow.createdAt,
+  }));
+
+  const filtered = agreements.filter(a => {
+    const matchSearch = a.id.toLowerCase().includes(search.toLowerCase()) ||
+      a.counterparty.address.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || a.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  // Not connected state
+  if (!isConnected) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Agreements</h1>
+          <p className="text-sm text-muted-foreground">Connect wallet to view agreements</p>
+        </div>
+        <EmptyState
+          icon={Wallet}
+          title="Connect Your Wallet"
+          description="Connect your Stacks wallet to view and manage your escrow agreements."
+        />
+      </div>
+    );
+  }
 
   if (isLoading) return <ListPageSkeleton />;
 
@@ -49,7 +89,7 @@ export default function Agreements() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Agreements</h1>
-          <p className="text-sm text-muted-foreground">{mockAgreements.length} total agreements</p>
+          <p className="text-sm text-muted-foreground">{agreements.length} total agreements</p>
         </div>
         <Button onClick={() => navigate("/agreements/create")} className="gradient-orange border-0 text-white">
           <Plus className="mr-1.5 h-4 w-4" /> New Agreement
@@ -98,9 +138,9 @@ export default function Agreements() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
           {filtered.map(agr => (
             <Card
-              key={agr.id}
+              key={agr.escrowId}
               className="cursor-pointer transition-colors hover:bg-accent"
-              onClick={() => navigate(`/agreements/${agr.id}`)}
+              onClick={() => navigate(`/agreements/${agr.escrowId}`)}
             >
               <CardContent className="flex items-center gap-3 p-4">
                 <ContactAvatar name={agr.counterparty.name} />
@@ -108,13 +148,16 @@ export default function Agreements() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground">{agr.id}</span>
                     <StatusBadge status={agr.status} />
+                    {agr.isClient && (
+                      <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">Client</span>
+                    )}
                   </div>
                   <p className="truncate text-sm font-medium text-foreground">{agr.title}</p>
-                  <p className="text-xs text-muted-foreground">{agr.counterparty.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{agr.counterparty.address}</p>
                 </div>
                 <div className="hidden sm:flex flex-col items-end gap-1">
                   <STXAmount amount={agr.amount} size="sm" />
-                  <CountdownTimer deadline={agr.deadline} />
+                  {agr.deadline && <CountdownTimer deadline={agr.deadline} />}
                 </div>
                 <div className="flex gap-2 sm:hidden">
                   <STXAmount amount={agr.amount} showUsd={false} size="sm" />
@@ -158,16 +201,16 @@ export default function Agreements() {
                 <div className="space-y-2">
                   {items.map(agr => (
                     <Card
-                      key={agr.id}
+                      key={agr.escrowId}
                       className="cursor-pointer transition-colors hover:bg-accent"
-                      onClick={() => navigate(`/agreements/${agr.id}`)}
+                      onClick={() => navigate(`/agreements/${agr.escrowId}`)}
                     >
                       <CardContent className="p-3">
                         <p className="truncate text-sm font-medium text-foreground">{agr.title}</p>
-                        <p className="text-xs text-muted-foreground">{agr.counterparty.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{agr.counterparty.name}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <STXAmount amount={agr.amount} showUsd={false} size="sm" />
-                          <CountdownTimer deadline={agr.deadline} />
+                          {agr.deadline && <CountdownTimer deadline={agr.deadline} />}
                         </div>
                       </CardContent>
                     </Card>

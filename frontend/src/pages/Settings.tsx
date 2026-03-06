@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { Settings as SettingsIcon, User, Wallet, Bell, FileText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -11,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/contexts/WalletContext";
-import { WalletModal } from "@/components/wallet/WalletModal";
 import { WalletAddress } from "@/components/shared/WalletAddress";
 import { toast } from "sonner";
 
@@ -59,24 +57,20 @@ function ProfileTab() {
 }
 
 function WalletTab() {
-  const { isConnected, address, network, walletName, disconnect, setNetwork } = useWallet();
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const { isConnected, address, network, walletName, disconnect, setNetwork, connect } = useWallet();
 
   if (!isConnected) {
     return (
-      <>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Wallet</CardTitle>
-            <CardDescription>Connect a Stacks wallet to manage your on-chain identity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4 text-sm text-muted-foreground">No wallet connected. Connect one to start creating agreements and invoices.</p>
-            <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
-          </CardContent>
-        </Card>
-        <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
-      </>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Wallet</CardTitle>
+          <CardDescription>Connect a Stacks wallet to manage your on-chain identity</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-muted-foreground">No wallet connected. Connect one to start creating agreements and invoices.</p>
+          <Button onClick={() => connect()}>Connect Wallet</Button>
+        </CardContent>
+      </Card>
     );
   }
 
