@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils";
-import type { AgreementStatus, InvoiceStatus } from "@/lib/mock-data";
+
+// Status types for agreements/escrows
+type AgreementStatus = "created" | "funded" | "delivered" | "completed" | "disputed" | "cancelled";
+
+// Status types for invoices  
+type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
 
 type AllStatus = AgreementStatus | InvoiceStatus;
 

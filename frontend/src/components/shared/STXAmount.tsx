@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { STX_PRICE_USD } from "@/lib/mock-data";
+import { STX_PRICE_USD } from "@/lib/contracts";
 
 interface STXAmountProps {
   amount: number;
