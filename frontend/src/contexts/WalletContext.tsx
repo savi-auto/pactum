@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { connect, disconnect as stacksDisconnect, isConnected as stacksIsConnected, getLocalStorage } from "@stacks/connect";
-import type { GetAddressesResult } from "@stacks/connect";
+import { connect, disconnect as stacksDisconnect, getLocalStorage } from "@stacks/connect";
 import { NETWORK_CONFIG } from "@/lib/contracts";
 
 interface WalletContextType {
@@ -66,11 +65,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [address, network, fetchBalance]);
 
-  const handleConnectionResult = (result: GetAddressesResult) => {
-    // Get the appropriate address based on network
-    // Index 0 = mainnet, Index 2 = testnet (Stacks addresses)
-    const addressIndex = network === "mainnet" ? 0 : 2;
-    const stxAddress = result.addresses[addressIndex]?.address;
+  const handleConnectionResult = (result: Awaited<ReturnType<typeof connect>>) => {
+    // Find the STX address for current network
+    const stxAddress = result.addresses.find(
+      (addr) => addr.symbol === 'STX' && addr.address.startsWith(network === 'mainnet' ? 'SP' : 'ST')
+    )?.address;
     
     if (stxAddress) {
       setIsConnected(true);
