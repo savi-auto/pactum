@@ -2,6 +2,18 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { connect, disconnect as stacksDisconnect, getLocalStorage } from "@stacks/connect";
 import { NETWORK_CONFIG } from "@/lib/contracts";
 
+// Suppress StacksProvider conflict warning from multiple wallet extensions
+if (typeof window !== 'undefined') {
+  const originalDefineProperty = Object.defineProperty;
+  Object.defineProperty = function(obj, prop, descriptor) {
+    if (obj === window && prop === 'StacksProvider' && Object.prototype.hasOwnProperty.call(window, 'StacksProvider')) {
+      console.warn('Multiple Stacks wallets detected - using first available');
+      return obj;
+    }
+    return originalDefineProperty.call(this, obj, prop, descriptor);
+  };
+}
+
 interface WalletContextType {
   isConnected: boolean;
   address: string | null;
@@ -120,6 +132,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
 export function useWallet() {
   const context = useContext(WalletContext);
-  if (!context) throw new Error("useWallet must be used within WalletProvider");
+  if (!context) {
+    // During HMR, context may be temporarily undefined - provide defaults
+    if (import.meta.hot) {
+      console.warn("WalletContext unavailable during HMR - using defaults");
+      return {
+        isConnected: false,
+        address: null,
+        balance: 0,
+        network: "testnet" as const,
+        walletName: null,
+        isLoading: false,
+        connect: async () => { console.warn("Wallet connection unavailable during HMR"); },
+        disconnect: () => {},
+        setNetwork: () => {},
+      };
+    }
+    throw new Error("useWallet must be used within WalletProvider");
+  }
   return context;
 }

@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContactAvatar } from "@/components/shared/ContactAvatar";
 import { STXAmount } from "@/components/shared/STXAmount";
-import { mockContacts, STX_PRICE_USD } from "@/lib/mock-data";
+import { useContactsStore } from "@/stores/useContactsStore";
+import { STX_PRICE_USD } from "@/lib/contracts";
 import { ArrowLeft, ArrowRight, Check, UserPlus, FileText, SkipForward, Loader2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useWallet } from "@/contexts/WalletContext";
 import { useCreateEscrow } from "@/hooks/useEscrow";
 
@@ -21,6 +22,7 @@ const steps = ["Counterparty", "Terms", "Invoice", "Review"];
 export default function CreateAgreement() {
   const navigate = useNavigate();
   const { isConnected, address: walletAddress } = useWallet();
+  const { contacts } = useContactsStore();
   const createEscrow = useCreateEscrow();
   
   const [step, setStep] = useState(0);
@@ -35,7 +37,7 @@ export default function CreateAgreement() {
     consent: false,
   });
 
-  const counterparty = mockContacts.find(c => c.id === form.counterpartyId);
+  const counterparty = contacts.find(c => c.id === form.counterpartyId);
   const freelancerAddress = form.role === "client" 
     ? (counterparty?.address || form.counterpartyAddress)
     : walletAddress;
@@ -56,20 +58,12 @@ export default function CreateAgreement() {
 
   const handleSubmit = async () => {
     if (!isConnected) {
-      toast({ 
-        title: "Wallet Not Connected", 
-        description: "Please connect your wallet to create an agreement.",
-        variant: "destructive"
-      });
+      toast.error("Please connect your wallet to create an agreement.");
       return;
     }
 
     if (!freelancerAddress) {
-      toast({ 
-        title: "Invalid Address", 
-        description: "Please provide a valid freelancer address.",
-        variant: "destructive"
-      });
+      toast.error("Please provide a valid freelancer address.");
       return;
     }
 
@@ -138,23 +132,29 @@ export default function CreateAgreement() {
                   </div>
                 </div>
 
-                {mockContacts.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => setForm(f => ({ ...f, counterpartyId: c.id, counterpartyAddress: "" }))}
-                    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      form.counterpartyId === c.id ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
-                    }`}
-                  >
-                    <ContactAvatar name={c.name} />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{c.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">{c.address.slice(0, 10)}...</p>
-                    </div>
-                    {form.counterpartyId === c.id && <Check className="ml-auto h-4 w-4 text-primary" />}
-                  </button>
-                ))}
-                <Button variant="outline" className="w-full mt-2" disabled>
+                {contacts.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No contacts yet. Add a contact or enter an address above.
+                  </p>
+                ) : (
+                  contacts.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => setForm(f => ({ ...f, counterpartyId: c.id, counterpartyAddress: "" }))}
+                      className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+                        form.counterpartyId === c.id ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
+                      }`}
+                    >
+                      <ContactAvatar name={c.name} />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{c.name}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{c.address.slice(0, 10)}...</p>
+                      </div>
+                      {form.counterpartyId === c.id && <Check className="ml-auto h-4 w-4 text-primary" />}
+                    </button>
+                  ))
+                )}
+                <Button variant="outline" className="w-full mt-2" onClick={() => navigate("/contacts")}>
                   <UserPlus className="mr-1.5 h-4 w-4" /> Add New Contact
                 </Button>
               </CardContent>
