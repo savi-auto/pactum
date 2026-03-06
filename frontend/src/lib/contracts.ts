@@ -113,3 +113,7 @@ export function microToStx(microStx: bigint | number): number {
 export function stxToMicro(stx: number): bigint {
   return BigInt(Math.floor(stx * 1_000_000));
 }
+
+// Approximate STX price in USD (for display purposes only)
+// In production, fetch real-time price from an API
+export const STX_PRICE_USD = 1.42;
