@@ -1,23 +1,20 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { mockInvoices } from "@/lib/mock-data";
+import { useInvoicesStore } from "@/stores/useInvoicesStore";
+import { STX_PRICE_USD } from "@/lib/contracts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { WalletAddress } from "@/components/shared/WalletAddress";
-import { DetailPageSkeleton } from "@/components/shared/PageSkeletons";
 import { TransactionButton } from "@/components/shared/TransactionButton";
-import { useSimulatedLoading } from "@/hooks/useSimulatedLoading";
-import { ArrowLeft, Download, Send, CheckCircle2, XCircle, Share2, Copy, FileText } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { ArrowLeft, Download, Send, CheckCircle2, XCircle, Share2, Copy, FileText, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function InvoiceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const isLoading = useSimulatedLoading();
-  const invoice = mockInvoices.find(inv => inv.id === id);
-
-  if (isLoading) return <DetailPageSkeleton />;
+  const { getInvoice, markAsSent, markAsPaid, updateInvoice, deleteInvoice } = useInvoicesStore();
+  const invoice = getInvoice(id!);
 
   if (!invoice) {
     return (
@@ -29,6 +26,8 @@ export default function InvoiceDetail() {
       </div>
     );
   }
+
+  const totalUsd = invoice.total * STX_PRICE_USD;
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -127,7 +126,7 @@ export default function InvoiceDetail() {
                   <div className="text-right">
                     <span className="font-mono text-foreground">{invoice.total.toLocaleString()} <span className="text-primary">STX</span></span>
                     <p className="font-mono text-xs font-normal text-muted-foreground">
-                      ≈ ${invoice.totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                      ≈ ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                     </p>
                   </div>
                 </div>
@@ -193,7 +192,8 @@ export default function InvoiceDetail() {
                   idleLabel="Mark as Sent"
                   idleIcon={Send}
                   onAction={async () => {
-                    toast({ title: "Invoice Sent", description: `${invoice.id} has been sent.` });
+                    markAsSent(invoice.id);
+                    toast.success(`${invoice.id} has been sent.`);
                   }}
                 />
               )}
@@ -203,7 +203,8 @@ export default function InvoiceDetail() {
                   idleLabel="Mark as Paid"
                   idleIcon={CheckCircle2}
                   onAction={async () => {
-                    toast({ title: "Payment Recorded", description: `${invoice.id} marked as paid.` });
+                    markAsPaid(invoice.id);
+                    toast.success(`${invoice.id} marked as paid.`);
                   }}
                 />
               )}
@@ -214,16 +215,30 @@ export default function InvoiceDetail() {
                   idleLabel="Cancel Invoice"
                   idleIcon={XCircle}
                   onAction={async () => {
-                    toast({ title: "Invoice Cancelled", description: `${invoice.id} has been cancelled.` });
+                    updateInvoice(invoice.id, { status: "cancelled" });
+                    toast.success(`${invoice.id} has been cancelled.`);
                   }}
                 />
               )}
               <div className="h-px bg-border" />
-              <Button variant="outline" className="w-full" onClick={() => toast({ title: "Link Copied" })}>
+              <Button variant="outline" className="w-full" onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                toast.success("Link copied");
+              }}>
                 <Copy className="mr-1.5 h-4 w-4" /> Copy Link
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => toast({ title: "Share dialog coming soon" })}>
-                <Share2 className="mr-1.5 h-4 w-4" /> Share Invoice
+              <Button 
+                variant="outline" 
+                className="w-full text-destructive hover:text-destructive" 
+                onClick={() => {
+                  if (confirm("Are you sure you want to delete this invoice?")) {
+                    deleteInvoice(invoice.id);
+                    toast.success("Invoice deleted");
+                    navigate("/invoices");
+                  }
+                }}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" /> Delete Invoice
               </Button>
             </CardContent>
           </Card>
