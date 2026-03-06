@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { connect, disconnect as stacksDisconnect, isConnected as stacksIsConnected, request } from "@stacks/connect";
+import { connect, disconnect as stacksDisconnect, isConnected as stacksIsConnected, getLocalStorage } from "@stacks/connect";
 import type { GetAddressesResult } from "@stacks/connect";
 import { NETWORK_CONFIG } from "@/lib/contracts";
 
@@ -41,32 +41,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Restore session on mount (without prompting wallet selector)
-  useEffect(() => {
-    const restoreSession = async () => {
-      if (stacksIsConnected()) {
-        // Use stx_getAddresses to restore from cache without prompting
-        try {
-          const result = await request('stx_getAddresses', {});
-          if (result.addresses?.length) {
-            // Find the STX address for current network
-            const stxAddress = result.addresses.find(
-              (addr) => addr.address.startsWith(network === 'mainnet' ? 'SP' : 'ST')
-            )?.address;
-            
-            if (stxAddress) {
-              setIsConnected(true);
-              setAddress(stxAddress);
-              setWalletName('Stacks Wallet');
-              fetchBalance(stxAddress, network);
-            }
-          }
-        } catch {
-          // Silent fail - user may have disconnected or cache expired
-        }
+  // Restore session on mount from localStorage (no wallet interaction)
+  useEffect(() => {    
+    const data = getLocalStorage();
+    if (data?.addresses?.stx?.length) {
+      // Find the STX address for current network
+      const stxAddress = data.addresses.stx.find(
+        (addr) => addr.address.startsWith(network === 'mainnet' ? 'SP' : 'ST')
+      )?.address;
+      
+      if (stxAddress) {
+        setIsConnected(true);
+        setAddress(stxAddress);
+        setWalletName('Stacks Wallet');
+        fetchBalance(stxAddress, network);
       }
-    };
-    restoreSession();
+    }
   }, []);
 
   // Refetch balance when network changes
