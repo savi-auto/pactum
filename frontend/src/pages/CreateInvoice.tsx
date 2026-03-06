@@ -9,10 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { mockContacts, mockAgreements, STX_PRICE_USD } from "@/lib/mock-data";
+import { useContactsStore } from "@/stores/useContactsStore";
+import { useInvoicesStore } from "@/stores/useInvoicesStore";
+import { useUserEscrows } from "@/hooks/useEscrow";
+import { useWallet } from "@/contexts/WalletContext";
+import { STX_PRICE_USD } from "@/lib/contracts";
 import { ArrowLeft, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { toast } from "sonner";
+import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface LineItem {
@@ -24,10 +28,15 @@ interface LineItem {
 
 export default function CreateInvoice() {
   const navigate = useNavigate();
+  const { contacts } = useContactsStore();
+  const { addInvoice } = useInvoicesStore();
+  const { data: escrows } = useUserEscrows();
+  const { address } = useWallet();
+  
   const [title, setTitle] = useState("");
   const [recipientId, setRecipientId] = useState("");
   const [taxPercent, setTaxPercent] = useState("0");
-  const [dueDate, setDueDate] = useState<Date | undefined>();
+  const [dueDate, setDueDate] = useState<Date | undefined>(addDays(new Date(), 14)); // Default to 14 days
   const [notes, setNotes] = useState("");
   const [linkedAgreement, setLinkedAgreement] = useState("none");
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -52,14 +61,47 @@ export default function CreateInvoice() {
   const total = subtotal + (subtotal * tax / 100);
   const totalUsd = total * STX_PRICE_USD;
 
-  const canSubmit = title && recipientId && lineItems.some(li => li.description && getLineTotal(li) > 0);
+  const recipient = contacts.find(c => c.id === recipientId);
+  const canSubmit = title && recipientId && lineItems.some(li => li.description && getLineTotal(li) > 0) && dueDate;
 
   const handleSubmit = (asDraft: boolean) => {
-    toast({
-      title: asDraft ? "Draft Saved" : "Invoice Created & Sent",
+    if (!recipient || !dueDate) return;
+
+    const invoice = addInvoice({
+      title,
+      from: {
+        id: "self",
+        name: "You",
+        address: address || "",
+      },
+      to: {
+        id: recipient.id,
+        name: recipient.name,
+        address: recipient.address,
+      },
+      status: asDraft ? "draft" : "sent",
+      lineItems: lineItems
+        .filter(li => li.description && getLineTotal(li) > 0)
+        .map(li => ({
+          id: li.id,
+          description: li.description,
+          quantity: parseFloat(li.quantity) || 1,
+          unitPrice: parseFloat(li.unitPrice) || 0,
+          total: getLineTotal(li),
+        })),
+      subtotal,
+      tax,
+      total,
+      agreementId: linkedAgreement !== "none" ? linkedAgreement : undefined,
+      issuedAt: asDraft ? "" : new Date().toISOString(),
+      dueDate: dueDate.toISOString(),
+      notes: notes || undefined,
+    });
+
+    toast.success(asDraft ? "Draft saved" : "Invoice created & sent", {
       description: `"${title}" — ${total.toLocaleString()} STX`,
     });
-    navigate("/invoices");
+    navigate(`/invoices/${invoice.id}`);
   };
 
   return (
@@ -88,9 +130,18 @@ export default function CreateInvoice() {
             <Select value={recipientId} onValueChange={setRecipientId}>
               <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select a contact" /></SelectTrigger>
               <SelectContent>
-                {mockContacts.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
+                {contacts.length === 0 ? (
+                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    <p>No contacts yet</p>
+                    <Button variant="link" size="sm" className="mt-1" onClick={() => navigate("/contacts")}>
+                      Add a contact
+                    </Button>
+                  </div>
+                ) : (
+                  contacts.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -185,8 +236,8 @@ export default function CreateInvoice() {
               <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
-                {mockAgreements.map(a => (
-                  <SelectItem key={a.id} value={a.id}>{a.id} — {a.title}</SelectItem>
+                {escrows?.map(e => (
+                  <SelectItem key={e.escrowId} value={e.escrowId.toString()}>#{e.escrowId} — Escrow with {e.counterparty.slice(0, 8)}...</SelectItem>
                 ))}
               </SelectContent>
             </Select>

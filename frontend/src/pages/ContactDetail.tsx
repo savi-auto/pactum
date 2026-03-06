@@ -6,13 +6,20 @@ import { ContactAvatar } from "@/components/shared/ContactAvatar";
 import { WalletAddress } from "@/components/shared/WalletAddress";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { STXAmount } from "@/components/shared/STXAmount";
-import { mockContacts, mockAgreements, mockInvoices } from "@/lib/mock-data";
-import { ArrowLeft, FileText, Handshake, TrendingUp, BarChart3 } from "lucide-react";
+import { useContactsStore } from "@/stores/useContactsStore";
+import { useInvoicesStore } from "@/stores/useInvoicesStore";
+import { useUserEscrows } from "@/hooks/useEscrow";
+import { ArrowLeft, FileText, Handshake, TrendingUp, BarChart3, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function ContactDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const contact = mockContacts.find(c => c.id === id);
+  const { getContact, deleteContact } = useContactsStore();
+  const { invoices } = useInvoicesStore();
+  const { data: escrows } = useUserEscrows();
+  
+  const contact = getContact(id!);
 
   if (!contact) {
     return (
@@ -25,13 +32,28 @@ export default function ContactDetail() {
     );
   }
 
-  const agreements = mockAgreements.filter(a => a.counterparty.id === contact.id);
-  const invoices = mockInvoices.filter(
-    inv => inv.from.id === contact.id || inv.to.id === contact.id
-  ).filter(inv => inv.from.id !== "self" || inv.to.id !== "self");
+  // Get agreements (escrows) where this contact is the counterparty
+  const agreements = escrows?.filter(
+    e => e.counterparty.address.toLowerCase() === contact.address.toLowerCase()
+  ) ?? [];
+  
+  // Get invoices involving this contact
+  const contactInvoices = invoices.filter(
+    inv => inv.from.address.toLowerCase() === contact.address.toLowerCase() || 
+           inv.to.address.toLowerCase() === contact.address.toLowerCase()
+  );
+  
   const totalVolume = agreements.reduce((sum, a) => sum + a.amount, 0);
   const completedCount = agreements.filter(a => a.status === "completed").length;
-  const activeCount = agreements.filter(a => !["completed", "disputed"].includes(a.status)).length;
+  const activeCount = agreements.filter(a => !["completed", "disputed", "cancelled"].includes(a.status)).length;
+
+  const handleDelete = () => {
+    if (confirm("Are you sure you want to delete this contact?")) {
+      deleteContact(contact.id);
+      toast.success("Contact deleted");
+      navigate("/contacts");
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -41,19 +63,33 @@ export default function ContactDetail() {
       </Button>
 
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <ContactAvatar name={contact.name} className="h-14 w-14 text-lg" />
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{contact.name}</h1>
-          <WalletAddress address={contact.address} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <ContactAvatar name={contact.name} className="h-14 w-14 text-lg" />
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{contact.name}</h1>
+            <WalletAddress address={contact.address} />
+            {contact.email && <p className="text-sm text-muted-foreground">{contact.email}</p>}
+          </div>
         </div>
+        <Button variant="outline" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive">
+          <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+        </Button>
       </div>
+
+      {contact.notes && (
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">{contact.notes}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Agreements", value: agreements.length, icon: Handshake },
-          { label: "Invoices", value: invoices.length, icon: FileText },
+          { label: "Invoices", value: contactInvoices.length, icon: FileText },
           { label: "Volume (STX)", value: totalVolume.toLocaleString(), icon: TrendingUp },
           { label: "Status", value: `${completedCount} done, ${activeCount} active`, icon: BarChart3 },
         ].map(stat => (
@@ -107,10 +143,10 @@ export default function ContactDetail() {
           <CardTitle className="text-sm font-medium text-muted-foreground">Invoice History</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {invoices.length === 0 ? (
+          {contactInvoices.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No invoices with this contact</p>
           ) : (
-            invoices.map(inv => (
+            contactInvoices.map(inv => (
               <div
                 key={inv.id}
                 className="flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent"
