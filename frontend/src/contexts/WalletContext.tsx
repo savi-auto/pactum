@@ -1,6 +1,10 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { connect, disconnect as stacksDisconnect, getLocalStorage } from "@stacks/connect";
 import { NETWORK_CONFIG } from "@/lib/contracts";
+import { toast } from "sonner";
+
+// App is currently testnet only
+const TESTNET_ONLY = true;
 
 // Suppress StacksProvider conflict warning from multiple wallet extensions
 if (typeof window !== 'undefined') {
@@ -19,6 +23,8 @@ interface WalletContextType {
   address: string | null;
   balance: number;
   network: "mainnet" | "testnet";
+  isTestnet: boolean;
+  apiUrl: string;
   walletName: string | null;
   isLoading: boolean;
   connect: () => Promise<void>;
@@ -56,16 +62,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {    
     const data = getLocalStorage();
     if (data?.addresses?.stx?.length) {
-      // Find the STX address for current network
-      const stxAddress = data.addresses.stx.find(
-        (addr) => addr.address.startsWith(network === 'mainnet' ? 'SP' : 'ST')
-      )?.address;
-      
-      if (stxAddress) {
-        setIsConnected(true);
-        setAddress(stxAddress);
-        setWalletName('Stacks Wallet');
-        fetchBalance(stxAddress, network);
+      // In testnet-only mode, only restore testnet addresses
+      if (TESTNET_ONLY) {
+        const testnetAddress = data.addresses.stx.find(
+          (addr) => addr.address.startsWith('ST')
+        )?.address;
+        
+        if (testnetAddress) {
+          setIsConnected(true);
+          setAddress(testnetAddress);
+          setWalletName('Stacks Wallet');
+          fetchBalance(testnetAddress, "testnet");
+        }
+      } else {
+        // Normal network-aware restoration
+        const stxAddress = data.addresses.stx.find(
+          (addr) => addr.address.startsWith(network === 'mainnet' ? 'SP' : 'ST')
+        )?.address;
+        
+        if (stxAddress) {
+          setIsConnected(true);
+          setAddress(stxAddress);
+          setWalletName('Stacks Wallet');
+          fetchBalance(stxAddress, network);
+        }
       }
     }
   }, []);
@@ -78,15 +98,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [address, network, fetchBalance]);
 
   const handleConnectionResult = (result: Awaited<ReturnType<typeof connect>>) => {
-    // Find the STX address for current network
-    const stxAddress = result.addresses.find(
-      (addr) => addr.symbol === 'STX' && addr.address.startsWith(network === 'mainnet' ? 'SP' : 'ST')
+    // Find the STX address for testnet (starts with ST)
+    const testnetAddress = result.addresses.find(
+      (addr) => addr.symbol === 'STX' && addr.address.startsWith('ST')
     )?.address;
     
-    if (stxAddress) {
-      setIsConnected(true);
-      setAddress(stxAddress);
-      fetchBalance(stxAddress, network);
+    // Find mainnet address to check if they're using mainnet wallet
+    const mainnetAddress = result.addresses.find(
+      (addr) => addr.symbol === 'STX' && addr.address.startsWith('SP')
+    )?.address;
+
+    // In testnet-only mode, reject mainnet wallets
+    if (TESTNET_ONLY) {
+      if (!testnetAddress && mainnetAddress) {
+        toast.error("Mainnet wallet not supported", {
+          description: "Please switch to testnet in your wallet settings. Testnet addresses start with 'ST'.",
+          duration: 6000,
+        });
+        stacksDisconnect();
+        return;
+      }
+      
+      if (testnetAddress) {
+        setIsConnected(true);
+        setAddress(testnetAddress);
+        fetchBalance(testnetAddress, "testnet");
+      }
+    } else {
+      // Normal network-aware connection
+      const stxAddress = network === 'mainnet' ? mainnetAddress : testnetAddress;
+      if (stxAddress) {
+        setIsConnected(true);
+        setAddress(stxAddress);
+        fetchBalance(stxAddress, network);
+      }
     }
   };
 
@@ -111,6 +156,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setWalletName(null);
   };
 
+  // Derived values
+  const isTestnet = TESTNET_ONLY || network === "testnet";
+  const apiUrl = NETWORK_CONFIG[isTestnet ? "testnet" : "mainnet"].apiUrl;
+
   return (
     <WalletContext.Provider 
       value={{ 
@@ -118,6 +167,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         address, 
         balance, 
         network, 
+        isTestnet,
+        apiUrl,
         walletName, 
         isLoading,
         connect: connectWallet, 
@@ -141,6 +192,8 @@ export function useWallet() {
         address: null,
         balance: 0,
         network: "testnet" as const,
+        isTestnet: true,
+        apiUrl: NETWORK_CONFIG.testnet.apiUrl,
         walletName: null,
         isLoading: false,
         connect: async () => { console.warn("Wallet connection unavailable during HMR"); },

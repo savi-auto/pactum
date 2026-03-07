@@ -2,32 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, useInView, useScroll, useTransform, useMotionValue, useSpring, useMotionTemplate } from "framer-motion";
 import { useWallet } from "@/contexts/WalletContext";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Shield, Zap, Globe, Wallet, FileText, CheckCircle, ExternalLink, Menu, X, BookOpen, Github, Twitter, ChevronUp, Quote } from "lucide-react";
+import { ArrowRight, Shield, Zap, Globe, Wallet, FileText, CheckCircle, ExternalLink, Menu, X, BookOpen, Github, Twitter, ChevronUp } from "lucide-react";
 import { PactumLogo } from "@/components/shared/PactumLogo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-
-/* ------------------------------------------------------------------ */
-/*  Animated count-up hook                                            */
-/* ------------------------------------------------------------------ */
-function useCountUp(target: number, duration = 2000, inView: boolean) {
-  const [count, setCount] = useState(0);
-  const hasRun = useRef(false);
-
-  useEffect(() => {
-    if (!inView || hasRun.current) return;
-    hasRun.current = true;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      setCount(Math.floor(progress * target));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [inView, target, duration]);
-
-  return count;
-}
+import { TestnetBadge, TestnetCard } from "@/components/shared/TestnetBanner";
 
 /* ------------------------------------------------------------------ */
 /*  RevealText – word-by-word masked slide-up                         */
@@ -89,30 +68,6 @@ function BlurFadeIn({ children, delay = 0.3, className = "" }: { children: React
     >
       {children}
     </motion.p>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Enhanced StatItem with blur + slide-up + scale                    */
-/* ------------------------------------------------------------------ */
-function StatItem({ value, suffix, label, index = 0 }: { value: number; suffix: string; label: string; index?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-50px" });
-  const count = useCountUp(value, 1800, inView);
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 24, scale: 0.95, filter: "blur(6px)" }}
-      whileInView={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay: index * 0.1, ease: "easeOut" }}
-      className="flex flex-col items-center gap-1 px-4 py-6"
-    >
-      <span className="text-3xl font-bold text-foreground md:text-4xl">
-        {count.toLocaleString()}{suffix}
-      </span>
-      <span className="text-sm text-muted-foreground">{label}</span>
-    </motion.div>
   );
 }
 
@@ -223,13 +178,6 @@ function ParticleField() {
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
-const stats = [
-  { value: 1000, suffix: "+", label: "Agreements Created" },
-  { value: 2, suffix: "M+", label: "STX Secured" },
-  { value: 500, suffix: "+", label: "Active Users" },
-  { value: 99, suffix: ".9%", label: "Uptime" },
-];
-
 const features = [
   {
     icon: Shield,
@@ -252,24 +200,6 @@ const steps = [
   { icon: Wallet, title: "Connect Wallet", desc: "Link your Stacks wallet in one click", detail: "Works with Hiro, Xverse, and other Stacks-compatible wallets. No signups or KYC required.", color: "from-primary to-orange-400" },
   { icon: FileText, title: "Create Agreement", desc: "Set terms, parties, and escrow amount", detail: "Define milestones, deadlines, and payment conditions. Your counterparty reviews and accepts on-chain.", color: "from-secondary to-violet-400" },
   { icon: CheckCircle, title: "Get Paid", desc: "Funds released automatically on fulfillment", detail: "Smart contract verifies delivery and releases escrow instantly. No manual approvals, no delays.", color: "from-emerald-500 to-green-400" },
-];
-
-const testimonials = [
-  {
-    quote: "Pactum replaced the trust problem entirely. I get paid on delivery, every single time.",
-    name: "Maya Chen",
-    role: "Freelance Developer",
-  },
-  {
-    quote: "On-chain invoicing gives our clients full transparency. Disputes dropped to nearly zero.",
-    name: "Luca Moretti",
-    role: "Design Agency Founder",
-  },
-  {
-    quote: "Multi-sig approvals made it possible for our DAO to hire contractors without custodial risk.",
-    name: "Aisha Okafor",
-    role: "DAO Operations Lead",
-  },
 ];
 
 
@@ -366,23 +296,6 @@ const stepSlideRight = {
     opacity: 1,
     x: 0,
     transition: { duration: 0.6, ease: "easeOut" as const },
-  },
-};
-
-const testimonialContainer = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.15, delayChildren: 0.1 },
-  },
-};
-
-const testimonialItem = {
-  hidden: { opacity: 0, y: 24, scale: 0.96 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.5, ease: "easeOut" as const },
   },
 };
 
@@ -526,6 +439,16 @@ function HeroSection({ onConnect, isConnected }: { onConnect: () => void; isConn
               </Button>
             </motion.div>
           </div>
+
+          {/* Testnet notification card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            className="mt-8 max-w-md"
+          >
+            <TestnetCard />
+          </motion.div>
         </motion.div>
       </motion.div>
     </section>
@@ -580,6 +503,7 @@ export default function Landing() {
         </div>
         {/* Desktop nav */}
         <div className="hidden items-center gap-2 md:flex">
+          <TestnetBadge />
           <ThemeToggle />
           {isConnected ? (
             <Button
@@ -641,6 +565,7 @@ export default function Landing() {
                 How It Works
               </a>
               <div className="flex items-center gap-2 px-3 py-1">
+                <TestnetBadge />
                 <ThemeToggle />
               </div>
               {isConnected ? (
@@ -675,15 +600,6 @@ export default function Landing() {
 
       {/* ── Hero ───────────────────────────────────────────────── */}
       <HeroSection onConnect={() => connect()} isConnected={isConnected} />
-
-      {/* ── Stats Bar ──────────────────────────────────────────── */}
-      <motion.section className="border-y border-border bg-muted/30" variants={sectionFadeUp} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}>
-        <div className="mx-auto grid max-w-5xl grid-cols-2 md:grid-cols-4">
-          {stats.map((s, i) => (
-            <StatItem key={s.label} {...s} index={i} />
-          ))}
-        </div>
-      </motion.section>
 
       {/* ── Features ───────────────────────────────────────────── */}
       <motion.section id="features" className="mx-auto max-w-6xl px-4 py-24 md:py-32" variants={sectionFadeUp} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}>
@@ -835,54 +751,6 @@ export default function Landing() {
               );
             })}
           </motion.div>
-        </div>
-      </motion.section>
-
-      {/* ── Social Proof ───────────────────────────────────────── */}
-      <motion.section
-        className="border-t border-border px-4 py-24 md:py-32"
-        variants={sectionFadeUp}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-80px" }}
-      >
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-4 text-center">
-            <RevealText text="Trusted by builders" as="h2" className="text-3xl font-bold md:text-4xl" />
-          </div>
-          <BlurFadeIn delay={0.3} className="mx-auto mb-16 max-w-2xl text-center text-lg text-muted-foreground">
-            From solo freelancers to DAOs, teams trust Pactum to handle what matters most — their money.
-          </BlurFadeIn>
-
-          {/* Testimonial cards */}
-          <motion.div
-            className="mb-20 grid gap-6 md:grid-cols-3"
-            variants={testimonialContainer}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-60px" }}
-          >
-            {testimonials.map((t, i) => (
-              <motion.div
-                key={i}
-                variants={testimonialItem}
-                className="group relative rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-lg hover:shadow-primary/5"
-              >
-                <Quote className="mb-4 h-6 w-6 text-primary/30" />
-                <p className="mb-6 text-sm leading-relaxed text-foreground/90">"{t.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-                    {t.name.split(" ").map(n => n[0]).join("")}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.role}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-
         </div>
       </motion.section>
 

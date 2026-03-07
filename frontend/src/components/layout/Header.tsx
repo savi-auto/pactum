@@ -1,9 +1,9 @@
 import { useWallet } from "@/contexts/WalletContext";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { TestnetBadge } from "@/components/shared/TestnetBanner";
 import { WalletAddress } from "@/components/shared/WalletAddress";
 import { STXAmount } from "@/components/shared/STXAmount";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -18,10 +18,7 @@ export function Header({ onConnectWallet }: { onConnectWallet: () => void }) {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/80 backdrop-blur-lg px-4 md:px-6">
       <div className="flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${network === "mainnet" ? "bg-emerald-500" : "bg-yellow-500"}`} />
-        <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-wider">
-          {network}
-        </Badge>
+        <TestnetBadge />
         {isConnected && address && (
           <span className="hidden sm:inline font-mono text-xs text-muted-foreground">{truncated}</span>
         )}

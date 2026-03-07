@@ -112,6 +112,7 @@ export function useCreateEscrow() {
             View transaction →
           </a>
         ),
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -159,6 +160,7 @@ export function useFundEscrow() {
             View transaction →
           </a>
         ),
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -190,6 +192,7 @@ export function useCancelEscrow() {
       toast({
         title: "Agreement Cancelled",
         description: "The escrow has been cancelled.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -221,6 +224,7 @@ export function useMarkDelivered() {
       toast({
         title: "Work Delivered",
         description: "Review period has started. Client has 48 hours to review.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -260,6 +264,7 @@ export function useReleasePayment() {
       toast({
         title: "Payment Released",
         description: "Funds have been transferred to the freelancer.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -291,6 +296,7 @@ export function useRequestRevision() {
       toast({
         title: "Revision Requested",
         description: "The freelancer has been notified to make revisions.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
